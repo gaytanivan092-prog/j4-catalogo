@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Catálogo J4 Store</title>
+  <style>
+    :root { --bg:#0b0c10; --card:#12141b; --muted:#9aa4b2; --text:#e9eef6; --accent:#3b82f6; --ok:#22c55e; --warn:#f59e0b; }
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
+    header{position:sticky;top:0;background:rgba(11,12,16,.9);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.08);z-index:5}
+    .wrap{max-width:1100px;margin:0 auto;padding:14px 16px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    h1{font-size:18px;margin:0}
+    .pill{padding:6px 10px;border:1px solid rgba(255,255,255,.14);border-radius:999px;color:var(--muted);font-size:13px}
+    .btn{cursor:pointer;border:0;border-radius:12px;padding:10px 12px;background:var(--accent);color:white;font-weight:700}
+    .btn.secondary{background:transparent;border:1px solid rgba(255,255,255,.18);font-weight:600}
+    .btn.danger{background:#ef4444}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    input,select{padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:transparent;color:var(--text);outline:none}
+    input::placeholder{color:#6b7280}
+    main .wrap{padding-top:18px;padding-bottom:32px}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    @media (max-width:980px){.grid{grid-template-columns:repeat(3,1fr)}}
+    @media (max-width:720px){.grid{grid-template-columns:repeat(2,1fr)}}
+    @media (max-width:420px){.grid{grid-template-columns:1fr}}
+    .card{background:var(--card);border:1px solid rgba(255,255,255,.09);border-radius:16px;overflow:hidden}
+    .card .p{padding:12px}
+    .img{height:150px;background:#0f1117;display:flex;align-items:center;justify-content:center}
+    .img img{width:100%;height:100%;object-fit:cover;display:block}
+    .muted{color:var(--muted)}
+    .price{font-weight:800}
+    .tag{font-size:12px;padding:4px 8px;border-radius:999px;background:rgba(59,130,246,.15);color:#cfe3ff;display:inline-flex;gap:6px;align-items:center}
+    .tag.ok{background:rgba(34,197,94,.15);color:#c9f7da}
+    .tag.warn{background:rgba(245,158,11,.15);color:#ffe7bf}
+    .split{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}
+    @media (max-width:900px){.split{grid-template-columns:1fr}}
+    .panel{background:var(--card);border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:14px}
+    .list{display:flex;flex-direction:column;gap:10px}
+    .line{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px}
+    .line strong{font-size:14px}
+    .right{display:flex;gap:8px;align-items:center}
+    .qty{width:86px}
+    .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#0f172a;border:1px solid rgba(255,255,255,.12);padding:10px 12px;border-radius:14px;display:none;z-index:10}
+    .bar{height:1px;background:rgba(255,255,255,.08);margin:10px 0}
+    a{color:#93c5fd}
+    .hint{font-size:12px;color:var(--muted);line-height:1.35}
+    code.inline{background:rgba(255,255,255,.08);padding:2px 6px;border-radius:8px}
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="row" style="justify-content:space-between">
+      <div class="row">
+        <h1>J4 Store · Catálogo</h1>
+        <span class="pill" id="branchPill">Sucursal: —</span>
+        <span class="pill" id="countPill">Modelos: —</span>
+      </div>
+      <div class="row">
+        <button class="btn secondary" id="btnCart">Ver carrito (0)</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <div class="panel" id="setupPanel">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <strong>Primero elige tu sucursal</strong>
+          <div class="muted" style="margin-top:4px">El stock se mostrará solo para esa sucursal.</div>
+          <div class="hint" style="margin-top:8px">
+            Si aún no conectas Google Sheets, esta página corre en modo demo para que veas cómo queda.
+            Luego solo pega tus links CSV en <code class="inline">MODELOS_CSV_URL</code> y <code class="inline">STOCK_CSV_URL</code> dentro del archivo.
+          </div>
+        </div>
+        <div class="row">
+          <select id="branchSelect">
+            <option value="" selected>Seleccionar…</option>
+            <option value="5 de Mayo">5 de Mayo</option>
+            <option value="Interplaza">Interplaza</option>
+          </select>
+          <button class="btn" id="btnSaveBranch">Entrar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row" style="margin:12px 0">
+      <input id="search" placeholder="Buscar modelo o marca…" style="flex:1;min-width:240px" />
+      <button class="btn secondary" id="btnReload">Recargar stock</button>
+      <button class="btn secondary" id="btnChangeBranch">Cambiar sucursal</button>
+    </div>
+
+    <div id="viewCatalog">
+      <div class="grid" id="modelGrid"></div>
+      <div class="muted" id="emptyMsg" style="display:none;margin-top:14px">No encontré modelos con stock en esa sucursal.</div>
+    </div>
+
+    <div id="viewDetail" style="display:none">
+      <button class="btn secondary" id="btnBack">← Volver</button>
+      <div class="split" style="margin-top:12px">
+        <div class="panel">
+          <div class="img" style="height:260px;border-radius:14px;overflow:hidden">
+            <img id="detailImg" alt="" />
+          </div>
+          <div style="margin-top:10px">
+            <div class="row" style="justify-content:space-between">
+              <div>
+                <div class="muted" id="detailBrand">—</div>
+                <h2 style="margin:6px 0 0 0" id="detailName">—</h2>
+              </div>
+              <div class="price" style="font-size:20px" id="detailPrice">$—</div>
+            </div>
+            <div class="bar"></div>
+            <div class="muted">Tallas disponibles (solo con existencia &gt; 0):</div>
+            <div class="list" id="sizeList" style="margin-top:10px"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <strong>Tu carrito</strong>
+          <div class="muted" style="margin-top:4px" id="cartHint">Sucursal: —</div>
+          <div class="bar"></div>
+          <div class="list" id="cartList"></div>
+          <div class="bar"></div>
+          <div class="row" style="justify-content:space-between">
+            <strong>Total</strong>
+            <strong id="cartTotal">$0</strong>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button class="btn" style="flex:1" id="btnWhatsApp">Enviar pedido por WhatsApp</button>
+            <button class="btn danger" id="btnClearCart">Vaciar</button>
+          </div>
+          <div class="muted" style="margin-top:10px;font-size:12px">
+            El pedido se envía al WhatsApp: <strong>81 34 20 98 44</strong>.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="viewCart" style="display:none">
+      <button class="btn secondary" id="btnCartBack">← Volver</button>
+      <div class="panel" style="margin-top:12px">
+        <div class="row" style="justify-content:space-between">
+          <strong>Carrito</strong>
+          <span class="pill" id="cartBranchPill">Sucursal: —</span>
+        </div>
+        <div class="bar"></div>
+        <div class="list" id="cartList2"></div>
+        <div class="bar"></div>
+        <div class="row" style="justify-content:space-between">
+          <strong>Total</strong>
+          <strong id="cartTotal2">$0</strong>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" style="flex:1" id="btnWhatsApp2">Enviar pedido por WhatsApp</button>
+          <button class="btn danger" id="btnClearCart2">Vaciar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <div class="hint">
+        Para conectar tu inventario real: publica tus pestañas de Google Sheets como CSV y pega las URLs dentro del archivo (arriba del script).
+        Columnas esperadas:
+        <ul style="margin:8px 0 0 18px">
+          <li><strong>MODELOS</strong>: ModeloID, Modelo, Marca, Precio, FotoURL, Activo</li>
+          <li><strong>STOCK</strong>: ModeloID, Sucursal, Talla, Existencia</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const WHATSAPP_NUMBER = "528134209844"; // 81 34 20 98 44
+const MODELOS_CSV_URL = "";
+const STOCK_CSV_URL   = "";
+const ALLOWED_SIZES = ["23","23.5","24","24.5","25","26","26.5","27","27.5","28","29"];
+const DEMO = (MODELOS_CSV_URL.trim()==="" && STOCK_CSV_URL.trim()==="");
+
+const $ = (id)=>document.getElementById(id);
+const money = (n)=> new Intl.NumberFormat("es-MX",{style:"currency",currency:"MXN",maximumFractionDigits:0}).format(Number(n||0));
+const toast = (msg)=>{
+  const t=$("toast");
+  t.textContent=msg;
+  t.style.display="block";
+  clearTimeout(toast._t);
+  toast._t=setTimeout(()=>t.style.display="none",2200);
+};
+const encodeForWa = (text)=> encodeURIComponent(text);
+
+function parseCSV(csv){
+  const lines = csv.trim().split(/\r?\n/);
+  const headers = lines.shift().split(",").map(h=>h.trim());
+  return lines.filter(Boolean).map(line=>{
+    const parts = [];
+    let cur="", inQuotes=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(ch === '"'){ inQuotes = !inQuotes; continue; }
+      if(ch === "," && !inQuotes){ parts.push(cur); cur=""; continue; }
+      cur += ch;
+    }
+    parts.push(cur);
+    const obj = {};
+    headers.forEach((h,idx)=> obj[h] = (parts[idx] ?? "").trim());
+    return obj;
+  });
+}
+async function fetchCSV(url){
+  const res = await fetch(url, {cache:"no-store"});
+  if(!res.ok) throw new Error("No pude cargar CSV: " + res.status);
+  const txt = await res.text();
+  return parseCSV(txt);
+}
+
+const state = {
+  branch: localStorage.getItem("j4_branch") || "",
+  customerName: localStorage.getItem("j4_name") || "",
+  customerWa: localStorage.getItem("j4_wa") || "",
+  modelos: [],
+  stock: [],
+  modelsById: new Map(),
+  stockByModel: new Map(),
+  cart: JSON.parse(localStorage.getItem("j4_cart") || "[]"),
+  currentModelId: null
+};
+
+function saveCart(){ localStorage.setItem("j4_cart", JSON.stringify(state.cart)); updateCartUI(); }
+function setBranch(b){
+  state.branch=b; localStorage.setItem("j4_branch", b);
+  $("branchPill").textContent = "Sucursal: " + (b||"—");
+  $("cartBranchPill").textContent = "Sucursal: " + (b||"—");
+  $("cartHint").textContent = "Sucursal: " + (b||"—");
+}
+function cartCount(){ return state.cart.reduce((a,it)=>a+Number(it.Cantidad||0),0); }
+function cartTotal(){ return state.cart.reduce((a,it)=>a+Number(it.Cantidad||0)*Number(it.PrecioUnit||0),0); }
+
+function demoData(){
+  const modelos = [
+    {ModeloID:"AF1-TRIPLEWHITE", Modelo:"Air Force 1 Triple White", Marca:"Nike", Precio:"2399", FotoURL:"https://images.unsplash.com/photo-1528701800489-20be3c1ea9b8?auto=format&fit=crop&w=1200&q=60", Activo:"TRUE"},
+    {ModeloID:"NB-550-WHITEGREEN", Modelo:"New Balance 550 White/Green", Marca:"New Balance", Precio:"2999", FotoURL:"https://images.unsplash.com/photo-1528701800489-20be3c1ea9b8?auto=format&fit=crop&w=1200&q=60", Activo:"TRUE"},
+    {ModeloID:"YEEZY-ZEBRA", Modelo:"Yeezy Zebra", Marca:"Adidas", Precio:"6499", FotoURL:"https://images.unsplash.com/photo-1528701800489-20be3c1ea9b8?auto=format&fit=crop&w=1200&q=60", Activo:"TRUE"},
+  ];
+  const stock = [
+    {ModeloID:"AF1-TRIPLEWHITE", Sucursal:"5 de Mayo", Talla:"27", Existencia:"3"},
+    {ModeloID:"AF1-TRIPLEWHITE", Sucursal:"5 de Mayo", Talla:"28", Existencia:"1"},
+    {ModeloID:"AF1-TRIPLEWHITE", Sucursal:"Interplaza", Talla:"26.5", Existencia:"2"},
+    {ModeloID:"NB-550-WHITEGREEN", Sucursal:"5 de Mayo", Talla:"26", Existencia:"1"},
+    {ModeloID:"NB-550-WHITEGREEN", Sucursal:"Interplaza", Talla:"27.5", Existencia:"2"},
+    {ModeloID:"YEEZY-ZEBRA", Sucursal:"Interplaza", Talla:"28", Existencia:"1"},
+  ];
+  return {modelos, stock};
+}
+
+async function loadData(){
+  let modelos=[], stock=[];
+  if(DEMO){
+    ({modelos, stock} = demoData());
+  } else {
+    if(STOCK_CSV_URL.trim()==="") throw new Error("Falta STOCK_CSV_URL");
+    stock = await fetchCSV(STOCK_CSV_URL);
+    if(MODELOS_CSV_URL.trim()!==""){
+      modelos = await fetchCSV(MODELOS_CSV_URL);
+    } else {
+      const m = new Map();
+      for(const r of stock){
+        const id = (r.ModeloID||"").trim();
+        if(!id) continue;
+        if(!m.has(id)){
+          m.set(id,{
+            ModeloID:id,
+            Modelo:(r.Modelo||id).trim(),
+            Marca:(r.Marca||"").trim(),
+            Precio:(r.Precio||"0").trim(),
+            FotoURL:(r.FotoURL||"").trim(),
+            Activo:(r.Activo||"TRUE").trim()
+          });
+        }
+      }
+      modelos = [...m.values()];
+    }
+  }
+
+  modelos = modelos
+    .filter(m=>String(m.Activo||"TRUE").toUpperCase() !== "FALSE")
+    .map(m=>({
+      ModeloID:String(m.ModeloID||"").trim(),
+      Modelo:String(m.Modelo||"").trim(),
+      Marca:String(m.Marca||"").trim(),
+      Precio:Number(m.Precio||0),
+      FotoURL:String(m.FotoURL||"").trim(),
+      Activo:String(m.Activo||"TRUE").trim()
+    }))
+    .filter(m=>m.ModeloID);
+
+  stock = stock
+    .map(s=>({
+      ModeloID:String(s.ModeloID||"").trim(),
+      Sucursal:String(s.Sucursal||"").trim(),
+      Talla:String(s.Talla||"").trim(),
+      Existencia:Number(s.Existencia||0),
+    }))
+    .filter(s=>s.ModeloID && s.Sucursal && ALLOWED_SIZES.includes(s.Talla));
+
+  state.modelos = modelos;
+  state.stock = stock;
+  state.modelsById = new Map(modelos.map(m=>[m.ModeloID,m]));
+  buildIndexes(); renderCatalog(); updateCartUI();
+}
+
+function buildIndexes(){
+  state.stockByModel = new Map();
+  if(!state.branch) return;
+  const rows = state.stock.filter(r => r.Sucursal === state.branch && r.Existencia > 0);
+  for(const r of rows){
+    if(!state.stockByModel.has(r.ModeloID)) state.stockByModel.set(r.ModeloID, []);
+    state.stockByModel.get(r.ModeloID).push(r);
+  }
+  for(const [k,arr] of state.stockByModel){ arr.sort((a,b)=> parseFloat(a.Talla)-parseFloat(b.Talla)); }
+}
+
+function renderCatalog(){
+  const q = $("search").value.trim().toLowerCase();
+  const grid = $("modelGrid"); grid.innerHTML = "";
+  const withStock = state.modelos.filter(m => state.stockByModel.has(m.ModeloID));
+  const filtered = withStock.filter(m=> !q || (m.Modelo+" "+m.Marca).toLowerCase().includes(q));
+
+  $("countPill").textContent = "Modelos: " + filtered.length;
+  $("emptyMsg").style.display = filtered.length ? "none" : "block";
+
+  for(const m of filtered){
+    const img = m.FotoURL || "";
+    const sizes = state.stockByModel.get(m.ModeloID) || [];
+    const totalPairs = sizes.reduce((a,r)=>a+r.Existencia,0);
+    const tagClass = totalPairs<=2 ? "warn" : "ok";
+    const tagText = totalPairs<=2 ? "Pocas piezas" : "Disponible";
+
+    const card = document.createElement("div");
+    card.className="card";
+    card.innerHTML = `
+      <div class="img">${img?`<img src="${img}" alt="">`:`<div class="muted">Sin foto</div>`}</div>
+      <div class="p">
+        <div class="row" style="justify-content:space-between">
+          <span class="tag ${tagClass}">● ${tagText}</span>
+          <span class="muted" style="font-size:12px">${state.branch}</span>
+        </div>
+        <div style="margin-top:8px">
+          <div class="muted" style="font-size:12px">${m.Marca || "—"}</div>
+          <div style="font-weight:800">${m.Modelo}</div>
+        </div>
+        <div class="row" style="justify-content:space-between;margin-top:10px">
+          <div class="price">${money(m.Precio)}</div>
+          <button class="btn secondary" data-open="${m.ModeloID}">Ver</button>
+        </div>
+      </div>
+    `;
+    card.querySelector("[data-open]").addEventListener("click", ()=>openDetail(m.ModeloID));
+    grid.appendChild(card);
+  }
+}
+
+function openDetail(modelId){
+  state.currentModelId = modelId;
+  const m = state.modelsById.get(modelId);
+  if(!m){ toast("Modelo no encontrado"); return; }
+  $("detailImg").src = m.FotoURL || "";
+  $("detailBrand").textContent = m.Marca || "—";
+  $("detailName").textContent = m.Modelo || m.ModeloID;
+  $("detailPrice").textContent = money(m.Precio);
+  renderSizeList(modelId);
+  $("viewCatalog").style.display="none";
+  $("viewCart").style.display="none";
+  $("viewDetail").style.display="block";
+}
+
+function renderSizeList(modelId){
+  const list = $("sizeList"); list.innerHTML = "";
+  const rows = state.stockByModel.get(modelId) || [];
+  if(rows.length===0){ list.innerHTML = `<div class="muted">Sin stock en ${state.branch}.</div>`; return; }
+  for(const r of rows){
+    const line = document.createElement("div");
+    line.className="line";
+    line.innerHTML = `
+      <div>
+        <strong>Talla ${r.Talla}</strong>
+        <div class="muted" style="font-size:12px">Quedan ${r.Existencia}</div>
+      </div>
+      <div class="right">
+        <input class="qty" type="number" min="1" max="${r.Existencia}" value="1" />
+        <button class="btn" data-add>Agregar</button>
+      </div>
+    `;
+    const qtyInput = line.querySelector(".qty");
+    line.querySelector("[data-add]").addEventListener("click", ()=>{
+      const qty = Number(qtyInput.value || 0);
+      if(!qty || qty<1){ toast("Elige cantidad"); return; }
+      if(qty > r.Existencia){ toast("No hay suficiente stock"); return; }
+      addToCart(modelId, r.Talla, qty);
+    });
+    list.appendChild(line);
+  }
+}
+
+function addToCart(modelId, talla, cantidad){
+  const m = state.modelsById.get(modelId);
+  if(!m) return;
+
+  const otherBranchItem = state.cart.find(it => it.Sucursal && it.Sucursal !== state.branch);
+  if(otherBranchItem){ toast("Tu carrito es de otra sucursal. Vacía el carrito para cambiar."); return; }
+
+  const key = modelId + "|" + talla;
+  const existing = state.cart.find(it => (it.ModeloID+"|"+it.Talla)===key);
+  const stockRow = (state.stockByModel.get(modelId)||[]).find(r=>r.Talla===talla);
+  const max = stockRow ? stockRow.Existencia : 999;
+
+  if(existing){
+    const newQty = Number(existing.Cantidad) + Number(cantidad);
+    if(newQty > max){ toast("No hay suficiente stock"); return; }
+    existing.Cantidad = newQty;
+  } else {
+    state.cart.push({
+      ModeloID: modelId,
+      Modelo: m.Modelo,
+      Talla: talla,
+      Cantidad: Number(cantidad),
+      PrecioUnit: Number(m.Precio||0),
+      Sucursal: state.branch
+    });
+  }
+  saveCart(); toast("Agregado al carrito ✅");
+}
+
+function removeFromCart(idx){ state.cart.splice(idx,1); saveCart(); }
+function clearCart(){ state.cart = []; saveCart(); toast("Carrito vacío"); }
+
+function buildWhatsAppText(){
+  const name = state.customerName || "Cliente";
+  const wa = state.customerWa || "";
+  const branch = state.branch || "—";
+  const items = state.cart.map(it=>{
+    const sub = Number(it.Cantidad)*Number(it.PrecioUnit);
+    return `- ${it.Modelo} | Talla ${it.Talla} | Cant ${it.Cantidad} | Subtotal ${money(sub)}`;
+  }).join("\n");
+  const total = money(cartTotal());
+  return `Hola! Quiero hacer este pedido:\n\nSucursal: ${branch}\nNombre: ${name}\nWhatsApp: ${wa}\n\nDetalle:\n${items}\n\nTotal: ${total}`;
+}
+
+function openWhatsApp(){
+  if(!state.branch){ toast("Elige sucursal"); return; }
+  if(state.cart.length===0){ toast("Tu carrito está vacío"); return; }
+  const text = buildWhatsAppText();
+  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeForWa(text)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function renderCart(listEl, totalEl){
+  listEl.innerHTML = "";
+  const items = state.cart.filter(it => it.Sucursal === state.branch);
+  if(items.length===0){
+    listEl.innerHTML = `<div class="muted">Aún no agregas productos.</div>`;
+  } else {
+    items.forEach((it,idx)=>{
+      const line = document.createElement("div");
+      line.className="line";
+      const sub = Number(it.Cantidad)*Number(it.PrecioUnit);
+      line.innerHTML = `
+        <div style="min-width:0">
+          <strong style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.Modelo}</strong>
+          <div class="muted" style="font-size:12px">Talla ${it.Talla} · Cant ${it.Cantidad}</div>
+          <div class="muted" style="font-size:12px">Subtotal: ${money(sub)}</div>
+        </div>
+        <div class="right">
+          <button class="btn secondary" data-less>-</button>
+          <button class="btn secondary" data-more>+</button>
+          <button class="btn danger" data-del>✕</button>
+        </div>
+      `;
+      line.querySelector("[data-del]").addEventListener("click", ()=>removeFromCart(idx));
+      line.querySelector("[data-less]").addEventListener("click", ()=>{ it.Cantidad = Math.max(1, Number(it.Cantidad)-1); saveCart(); });
+      line.querySelector("[data-more]").addEventListener("click", ()=>{
+        const stockRow = (state.stockByModel.get(it.ModeloID)||[]).find(r=>r.Talla===it.Talla);
+        const max = stockRow ? stockRow.Existencia : 999;
+        if(Number(it.Cantidad)+1 > max){ toast("No hay suficiente stock"); return; }
+        it.Cantidad = Number(it.Cantidad)+1; saveCart();
+      });
+      listEl.appendChild(line);
+    });
+  }
+  totalEl.textContent = money(cartTotal());
+  $("btnCart").textContent = `Ver carrito (${cartCount()})`;
+}
+
+function updateCartUI(){
+  renderCart($("cartList"), $("cartTotal"));
+  renderCart($("cartList2"), $("cartTotal2"));
+}
+
+function showCatalog(){
+  $("viewDetail").style.display="none";
+  $("viewCart").style.display="none";
+  $("viewCatalog").style.display="block";
+}
+function showCart(){
+  if(!state.branch){ $("setupPanel").style.display="block"; return; }
+  $("viewDetail").style.display="none";
+  $("viewCatalog").style.display="none";
+  $("viewCart").style.display="block";
+}
+
+$("btnSaveBranch").addEventListener("click", ()=>{
+  const b = $("branchSelect").value;
+  if(!b){ toast("Selecciona sucursal"); return; }
+  const name = prompt("Tu nombre (para el pedido):", state.customerName || "");
+  if(name !== null) { state.customerName = name.trim(); localStorage.setItem("j4_name", state.customerName); }
+  const wa = prompt("Tu WhatsApp (solo número):", state.customerWa || "");
+  if(wa !== null) { state.customerWa = wa.trim(); localStorage.setItem("j4_wa", state.customerWa); }
+  setBranch(b);
+  $("setupPanel").style.display="none";
+  buildIndexes(); renderCatalog(); updateCartUI();
+});
+
+$("btnChangeBranch").addEventListener("click", ()=>{
+  if(state.cart.length>0){ toast("Vacía el carrito para cambiar sucursal"); return; }
+  $("setupPanel").style.display="block";
+});
+$("search").addEventListener("input", renderCatalog);
+$("btnReload").addEventListener("click", async ()=>{
+  try{ await loadData(); toast("Datos recargados ✅"); }
+  catch(e){ console.error(e); toast("Error al recargar (revisa URLs CSV)"); }
+});
+$("btnBack").addEventListener("click", showCatalog);
+$("btnCartBack").addEventListener("click", ()=>{ if(state.currentModelId) openDetail(state.currentModelId); else showCatalog(); });
+$("btnCart").addEventListener("click", showCart);
+$("btnWhatsApp").addEventListener("click", openWhatsApp);
+$("btnWhatsApp2").addEventListener("click", openWhatsApp);
+$("btnClearCart").addEventListener("click", clearCart);
+$("btnClearCart2").addEventListener("click", clearCart);
+
+(async function init(){
+  setBranch(state.branch);
+  $("setupPanel").style.display = state.branch ? "none" : "block";
+  $("branchSelect").value = state.branch || "";
+  try{ await loadData(); }
+  catch(e){ console.error(e); toast("No pude cargar datos. Revisa tus URLs CSV."); }
+})();
+</script>
+</body>
+</html>
